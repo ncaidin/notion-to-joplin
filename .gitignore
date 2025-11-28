@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# Editor junk
+*.swp
+*.swo
+*.log
+.vscode/
+.idea/
