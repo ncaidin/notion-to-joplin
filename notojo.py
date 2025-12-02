@@ -7,7 +7,7 @@ import requests
 
 # NOTION variables
 NOTION_SECRET = os.getenv("NOTION_SECRET")
-NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
+NOTION_ACTION_DATABASE_ID = os.getenv("NOTION_ACTION_DATABASE_ID")
 NOTION_API_URL = "https://api.notion.com/v1/databases"
 NOTION_VERSION = "2022-06-28"
 
@@ -20,8 +20,8 @@ JOPLIN_TODO_FOLDER_ID = "9bd030cb7cda47a5beac41da29a149db"
 def query_notion_actions():
     """Query Notion for actions that are NOT done and due today or earlier."""
 
-    if not NOTION_SECRET or not NOTION_DATABASE_ID:
-        print("❌ NOTION_SECRET or NOTION_DATABASE_ID not set. Exiting.")
+    if not NOTION_SECRET or not NOTION_ACTION_DATABASE_ID:
+        print("❌ NOTION_SECRET or NOTION_ACTION_DATABASE_ID not set. Exiting.")
         sys.exit(1)
 
     # Today in ISO 8601 date format
@@ -40,7 +40,7 @@ def query_notion_actions():
     print("\n⏳ Querying Notion for Pending Actions...\n")
 
     try:
-        data = query_notion_database(NOTION_DATABASE_ID, payload)
+        data = query_notion_database(NOTION_ACTION_DATABASE_ID, payload)
         return data.get("results", [])
     except Exception as e:
         print(f"❌ Error querying Notion database:\n{e}\n")
@@ -49,8 +49,8 @@ def query_notion_actions():
 def query_notion_waiting():
     """Query Notion for actions that are NOT done and ARE marked as Waiting."""
 
-    if not NOTION_SECRET or not NOTION_DATABASE_ID:
-        print("❌ NOTION_SECRET or NOTION_DATABASE_ID not set. Exiting.")
+    if not NOTION_SECRET or not NOTION_ACTION_DATABASE_ID:
+        print("❌ NOTION_SECRET or NOTION_ACTION_DATABASE_ID not set. Exiting.")
         sys.exit(1)
 
     # Today in ISO 8601 date format
@@ -69,7 +69,7 @@ def query_notion_waiting():
     print("\n⏳ Querying Notion for Waiting-on-others actions...\n")
 
     try:
-        data = query_notion_database(NOTION_DATABASE_ID, payload)
+        data = query_notion_database(NOTION_ACTION_DATABASE_ID, payload)
         return data.get("results", [])
     except Exception as e:
         print(f"❌ Error querying Notion database for waiting items:\n{e}\n")
@@ -77,7 +77,7 @@ def query_notion_waiting():
 
     print("\n⏳ Querying Notion for Awaiting Responses...\n")
 
-    url = f"{NOTION_API_URL}/{NOTION_DATABASE_ID}/query"
+    url = f"{NOTION_API_URL}/{NOTION_ACTION_DATABASE_ID}/query"
     try:
         resp = requests.post(url, headers=headers, json=payload)
         resp.raise_for_status()
