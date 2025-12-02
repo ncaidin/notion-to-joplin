@@ -19,3 +19,8 @@ env/
 *.log
 .vscode/
 .idea/
+
+# Test scripts for Python
+tests/**
+!tests/README.md
+

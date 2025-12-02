@@ -1,3 +1,5 @@
+from notion_utils import query_notion_database
+
 import os
 import sys
 from datetime import datetime, timezone
@@ -17,99 +19,61 @@ JOPLIN_TODO_FOLDER_ID = "9bd030cb7cda47a5beac41da29a149db"
 
 def query_notion_actions():
     """Query Notion for actions that are NOT done and due today or earlier."""
+
     if not NOTION_SECRET or not NOTION_DATABASE_ID:
         print("❌ NOTION_SECRET or NOTION_DATABASE_ID not set. Exiting.")
         sys.exit(1)
 
-    headers = {
-        "Authorization": f"Bearer {NOTION_SECRET}",
-        "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
-    }
-
-    # Today in ISO 8601 (date only)
+    # Today in ISO 8601 date format
     today_iso = datetime.now(timezone.utc).date().isoformat()
 
     payload = {
         "filter": {
             "and": [
-                {
-                    "property": "Done",
-                    "checkbox": {
-                        "equals": False
-                    }
-                },
- {
-                    "property": "Waiting",
-                    "checkbox": {
-                        "equals": False
-                    }
-                },
-                {
-                    "property": "Do Date",
-                    "date": {
-                        "on_or_before": today_iso
-                    }
-                },
+                {"property": "Done", "checkbox": {"equals": False}},
+                {"property": "Waiting", "checkbox": {"equals": False}},
+                {"property": "Do Date", "date": {"on_or_before": today_iso}},
             ]
         }
     }
 
     print("\n⏳ Querying Notion for Pending Actions...\n")
 
-    url = f"{NOTION_API_URL}/{NOTION_DATABASE_ID}/query"
     try:
-        resp = requests.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
+        data = query_notion_database(NOTION_DATABASE_ID, payload)
+        return data.get("results", [])
+    except Exception as e:
         print(f"❌ Error querying Notion database:\n{e}\n")
-        # Print response content if available for debugging
-        if e.response is not None:
-            print("Response content:", e.response.text)
         return []
 
-    data = resp.json()
-    return data.get("results", [])
-
 def query_notion_waiting():
-    """Query Notion for actions that are NOT done and due today or earlier."""
+    """Query Notion for actions that are NOT done and ARE marked as Waiting."""
+
     if not NOTION_SECRET or not NOTION_DATABASE_ID:
         print("❌ NOTION_SECRET or NOTION_DATABASE_ID not set. Exiting.")
         sys.exit(1)
 
-    headers = {
-        "Authorization": f"Bearer {NOTION_SECRET}",
-        "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
-    }
-
-    # Today in ISO 8601 (date only)
+    # Today in ISO 8601 date format
     today_iso = datetime.now(timezone.utc).date().isoformat()
 
     payload = {
         "filter": {
             "and": [
-                {
-                    "property": "Done",
-                    "checkbox": {
-                        "equals": False
-                    }
-                },
- {
-                    "property": "Waiting",
-                    "checkbox": {
-                        "equals": True
-                    }
-                },
-                {
-                    "property": "Do Date",
-                    "date": {
-                        "on_or_before": today_iso
-                    }
-                },
+                {"property": "Done", "checkbox": {"equals": False}},
+                {"property": "Waiting", "checkbox": {"equals": True}},
+                {"property": "Do Date", "date": {"on_or_before": today_iso}},
             ]
         }
     }
+
+    print("\n⏳ Querying Notion for Waiting-on-others actions...\n")
+
+    try:
+        data = query_notion_database(NOTION_DATABASE_ID, payload)
+        return data.get("results", [])
+    except Exception as e:
+        print(f"❌ Error querying Notion database for waiting items:\n{e}\n")
+        return []
 
     print("\n⏳ Querying Notion for Awaiting Responses...\n")
 
