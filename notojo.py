@@ -100,22 +100,6 @@ def query_notion_waiting():
         log_error(f"❌ Error querying Notion database for waiting items:\n{e}\n")
         return []
 
-    # print("\n⏳ Querying Notion for Awaiting Responses...\n")
-
-    url = f"{NOTION_API_URL}/{NOTION_ACTION_DATABASE_ID}/query"
-    try:
-        resp = requests.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
-        log_error(f"❌ Error querying Notion database:\n{e}\n")
-        # Print response content if available for debugging
-        if e.response is not None:
-            log_error("Response content:", e.response.text)
-        return []
-
-    data = resp.json()
-    return data.get("results", [])
-
 
 def extract_action_names(results):
     """Extract the 'Name' (title) property from each result."""
