@@ -1,136 +1,109 @@
+from notion_utils import query_notion_database
+
 import os
 import sys
 from datetime import datetime, timezone
 import requests
 
+from datetime import datetime
+import sys
+
+def log(msg):
+    """Log a normal message with timestamp to stdout."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {msg}")
+
+def log_error(msg):
+    """Log an error message with timestamp to stderr."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {msg}", file=sys.stderr)
+
+from pathlib import Path
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+
 # NOTION variables
-NOTION_SECRET = os.getenv("NOTION_SECRET")
-NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
+NOTION_SECRET = os.environ.get("NOTION_SECRET")
+NOTION_ACTION_DATABASE_ID = os.environ.get("NOTION_ACTION_DATABASE_ID")
 NOTION_API_URL = "https://api.notion.com/v1/databases"
 NOTION_VERSION = "2022-06-28"
 
 # JOPLIN variables
-JOPLIN_TOKEN = os.getenv("JOPLIN_TOKEN")
-JOPLIN_BASE_URL = os.getenv("JOPLIN_BASE_URL", "http://127.0.0.1:41184")
+JOPLIN_TOKEN = os.environ.get("JOPLIN_TOKEN")
+JOPLIN_BASE_URL = os.environ.get("JOPLIN_BASE_URL", "http://127.0.0.1:41184")
 JOPLIN_TODO_FOLDER_ID = "9bd030cb7cda47a5beac41da29a149db"
+
+REQUIRED_VARS = [
+    "NOTION_SECRET",
+    "NOTION_ACTION_DATABASE_ID",
+    "JOPLIN_TOKEN",
+]
+
+missing = [v for v in REQUIRED_VARS if not os.environ.get(v)]
+
+if missing:
+    log_error("❌ Missing required environment variables:")
+    for v in missing:
+        log_error(f"   - {v}")
+    sys.exit(1)
 
 
 def query_notion_actions():
     """Query Notion for actions that are NOT done and due today or earlier."""
-    if not NOTION_SECRET or not NOTION_DATABASE_ID:
-        print("❌ NOTION_SECRET or NOTION_DATABASE_ID not set. Exiting.")
-        sys.exit(1)
 
-    headers = {
-        "Authorization": f"Bearer {NOTION_SECRET}",
-        "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
-    }
-
-    # Today in ISO 8601 (date only)
+    # Today in ISO 8601 date format
     today_iso = datetime.now(timezone.utc).date().isoformat()
 
     payload = {
         "filter": {
             "and": [
-                {
-                    "property": "Done",
-                    "checkbox": {
-                        "equals": False
-                    }
-                },
- {
-                    "property": "Waiting",
-                    "checkbox": {
-                        "equals": False
-                    }
-                },
-                {
-                    "property": "Do Date",
-                    "date": {
-                        "on_or_before": today_iso
-                    }
-                },
+                {"property": "Done", "checkbox": {"equals": False}},
+                {"property": "Waiting", "checkbox": {"equals": False}},
+                {"property": "Do Date", "date": {"on_or_before": today_iso}},
             ]
         }
     }
 
-    print("\n⏳ Querying Notion for Pending Actions...\n")
+    # print("\n⏳ Querying Notion for Pending Actions...\n")
 
-    url = f"{NOTION_API_URL}/{NOTION_DATABASE_ID}/query"
     try:
-        resp = requests.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
-        print(f"❌ Error querying Notion database:\n{e}\n")
-        # Print response content if available for debugging
-        if e.response is not None:
-            print("Response content:", e.response.text)
+        data = query_notion_database(NOTION_ACTION_DATABASE_ID, payload)
+        return data.get("results", [])
+    except Exception as e:
+        log_error(f"❌ Error querying Notion database:\n{e}\n")
         return []
-
-    data = resp.json()
-    return data.get("results", [])
 
 def query_notion_waiting():
-    """Query Notion for actions that are NOT done and due today or earlier."""
-    if not NOTION_SECRET or not NOTION_DATABASE_ID:
-        print("❌ NOTION_SECRET or NOTION_DATABASE_ID not set. Exiting.")
-        sys.exit(1)
+    """Query Notion for actions that are NOT done and ARE marked as Waiting."""
 
-    headers = {
-        "Authorization": f"Bearer {NOTION_SECRET}",
-        "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
-    }
-
-    # Today in ISO 8601 (date only)
+    # Today in ISO 8601 date format
     today_iso = datetime.now(timezone.utc).date().isoformat()
 
     payload = {
         "filter": {
             "and": [
-                {
-                    "property": "Done",
-                    "checkbox": {
-                        "equals": False
-                    }
-                },
- {
-                    "property": "Waiting",
-                    "checkbox": {
-                        "equals": True
-                    }
-                },
-                {
-                    "property": "Do Date",
-                    "date": {
-                        "on_or_before": today_iso
-                    }
-                },
+                {"property": "Done", "checkbox": {"equals": False}},
+                {"property": "Waiting", "checkbox": {"equals": True}},
+                {"property": "Do Date", "date": {"on_or_before": today_iso}},
             ]
         }
     }
 
-    print("\n⏳ Querying Notion for Awaiting Responses...\n")
+    # print("\n⏳ Querying Notion for Waiting-on-others actions...\n")
 
-    url = f"{NOTION_API_URL}/{NOTION_DATABASE_ID}/query"
     try:
-        resp = requests.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
-        print(f"❌ Error querying Notion database:\n{e}\n")
-        # Print response content if available for debugging
-        if e.response is not None:
-            print("Response content:", e.response.text)
+        data = query_notion_database(NOTION_ACTION_DATABASE_ID, payload)
+        return data.get("results", [])
+    except Exception as e:
+        log_error(f"❌ Error querying Notion database for waiting items:\n{e}\n")
         return []
-
-    data = resp.json()
-    return data.get("results", [])
 
 
 def extract_action_names(results):
     """Extract the 'Name' (title) property from each result."""
-    print("📄 Extracting action names...\n")
+    # print("📄 Extracting action names...\n")
     actions = []
 
     for page in results:
@@ -150,7 +123,7 @@ def extract_action_names(results):
 
 def build_checklist_section(title: str,actions):
     """Build markdown checklist text from action names."""
-    print("📝 Generating checklist section: {title}...\n")
+    # print("📝 Generating checklist section: {title}...\n")
 
     empty_text = {
         "Pending Actions": "No pending actions.",
@@ -168,11 +141,6 @@ def build_checklist_section(title: str,actions):
 
 
 def create_joplin_note(title: str, body: str):
-    """Create a new note in Joplin via the Web Clipper API."""
-    if not JOPLIN_TOKEN:
-        print("⚠️ JOPLIN_TOKEN not set. Skipping Joplin note creation.")
-        return
-
     notes_url = f"{JOPLIN_BASE_URL}/notes"
     params = {"token": JOPLIN_TOKEN}
     payload = {
@@ -186,9 +154,9 @@ def create_joplin_note(title: str, body: str):
         resp.raise_for_status()
         data = resp.json()
         note_id = data.get("id")
-        print(f"✅ Created Joplin note with id: {note_id}")
+        # print(f"✅ Created Joplin note with id: {note_id}")
     except Exception as e:
-        print(f"❌ Error creating Joplin note: {e}")
+        log_error(f"❌ Error creating Joplin note: {e}")
 
 
 def main():
@@ -211,17 +179,19 @@ def main():
         sections.append(waiting_section)
 
     if not sections:
-        print("ℹ️ No actions to send to Joplin today.")
+        log("ℹ️ No actions to send to Joplin today.")
         return
 
     checklist_text = "\n\n".join(sections)
 
     # Print to console so you can see what we’re sending
-    print(checklist_text)
+    # print(checklist_text)
 
     today_str = datetime.now().strftime("%d-%m-%Y")
     title = f"Notion To Dos – {today_str}"
     create_joplin_note(title, checklist_text)
+
+    log("✅ notojo.py completed successfully and synced to Joplin.")
 
 if __name__ == "__main__":
     main()
