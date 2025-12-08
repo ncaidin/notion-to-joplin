@@ -29,3 +29,7 @@ tests/**
 
 # launchd / automation logs
 logs/*.log
+
+# Production script - do not touch while working on new branch so that launchd doesn't break
+notojo_prod.py
+

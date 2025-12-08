@@ -75,6 +75,31 @@ def query_notion_actions():
         log_error(f"❌ Error querying Notion database:\n{e}\n")
         return []
 
+def unscheduled_count():
+    """Query Notion for actions that are NOT scheduled, current defined as no "do date"."""
+
+    # Today in ISO 8601 date format
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+
+    payload = {
+        "filter": {
+            "and": [
+                {"property": "Done", "checkbox": {"equals": False}},
+                {"property": "Waiting", "checkbox": {"equals": False}},
+                {"property": "Do Date", "date": {"is_empty": True}},
+            ]
+        }
+    }
+
+    # print("\n⏳ Querying Notion for Unscheduled Actions...\n")
+
+    try:
+        data = query_notion_database(NOTION_ACTION_DATABASE_ID, payload)
+        return len(data.get("results", []))
+    except Exception as e:
+        log_error(f"❌ Error querying Notion database:\n{e}\n")
+        return 0
+
 def query_notion_waiting():
     """Query Notion for actions that are NOT done and ARE marked as Waiting."""
 
@@ -158,7 +183,6 @@ def create_joplin_note(title: str, body: str):
     except Exception as e:
         log_error(f"❌ Error creating Joplin note: {e}")
 
-
 def main():
     # First step - Pending Actions
     pending_results = query_notion_actions()
@@ -168,19 +192,29 @@ def main():
     waiting_results = query_notion_waiting()
     waiting_actions = extract_action_names(waiting_results)
 
+    # Third: Unscheduled count
+    unscheduled = unscheduled_count()
+
+    # ✅ Option C: only skip if *everything* is empty
+    if not pending_actions and not waiting_actions and unscheduled == 0:
+        log("ℹ️ No actions to send to Joplin today.")
+        return
+
     sections = []
 
+    # Pending section (will show either real items or a “no pending” message)
     pending_section = build_checklist_section("Pending Actions", pending_actions)
     if pending_section:
         sections.append(pending_section)
 
+    # Waiting section
     waiting_section = build_checklist_section("Awaiting responses", waiting_actions)
     if waiting_section:
         sections.append(waiting_section)
 
-    if not sections:
-        log("ℹ️ No actions to send to Joplin today.")
-        return
+    # Footer for unscheduled items, only if > 0
+    if unscheduled > 0:
+        sections.append(f"---\nUnscheduled actions in Notion (no Do Date): **{unscheduled}**")
 
     checklist_text = "\n\n".join(sections)
 
@@ -193,5 +227,7 @@ def main():
 
     log("✅ notojo.py completed successfully and synced to Joplin.")
 
+
 if __name__ == "__main__":
     main()
+
