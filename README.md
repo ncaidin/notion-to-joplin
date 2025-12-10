@@ -37,8 +37,8 @@ This script expects secrets/config to come from environment variables
 	•	NOTION_SECRET
 	•	NOTION_ACTION_DATABASE_ID
 	•	NOTION_VERSION (e.g. 2022-06-28)
-	•	JOPLIN_CLIPPER_URL 
-        *       JOPLIN_TOKEN
+	•	JOPLIN_CLIPPER_URL
+	•   JOPLIN_TOKEN
 
 Usage
 
@@ -48,7 +48,7 @@ python notojo.py
 
 The script will:
 	1.	Query Notion for pending actions and items awaiting responses.
-        2.      Count the number of unscheduled actions
+    2.  Count the number of unscheduled actions
 	3.	Generate a Markdown checklist grouped into sections.
 	4.	Create or update a daily note in Joplin with those sections.
 
