@@ -213,9 +213,14 @@ def main():
         sections.append(waiting_section)
 
     # Footer for unscheduled items, only if > 0
-    if unscheduled > 0:
-        sections.append(f"---\nUnscheduled actions in Notion (no Do Date): **{unscheduled}**")
 
+    if unscheduled > 0:
+        sections.append("---")
+        sections.append("&nbsp;")  # a visual spacer paragraph
+        sections.append(
+        f"Unscheduled actions in Notion (no Do Date): **{unscheduled}**"
+    )
+    
     checklist_text = "\n\n".join(sections)
 
     # Print to console so you can see what we’re sending

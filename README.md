@@ -6,7 +6,8 @@ Markdown checklist note in Joplin, using the Joplin Web Clipper API.
 Current features:
 
 - Query Notion for "Pending Actions"
-- Query Notion for "Awaiting Responses" (or similar)
+- Query Notion for "Awaiting Responses"
+- Query Notion for a count of unscheduled actions
 - Generate a single Markdown note with multiple sections
 - Create a daily Joplin note with a date-based title
 
@@ -34,15 +35,10 @@ Configuration
 This script expects secrets/config to come from environment variables
 (or a .env file if you’re using python-dotenv):
 	•	NOTION_SECRET
-	•	NOTION_DATABASE_ID
+	•	NOTION_ACTION_DATABASE_ID
 	•	NOTION_VERSION (e.g. 2022-06-28)
-	•	JOPLIN_CLIPPER_URL (e.g. http://127.0.0.1:41184)
-
-If you prefer, you can create a .env file (not checked into git):
-NOTION_SECRET=secret_xyz
-NOTION_DATABASE_ID=xxxxxxxxxxxxxxxxxxxx
-NOTION_VERSION=2022-06-28
-JOPLIN_CLIPPER_URL=http://127.0.0.1:41184
+	•	JOPLIN_CLIPPER_URL 
+        *       JOPLIN_TOKEN
 
 Usage
 
@@ -52,8 +48,9 @@ python notojo.py
 
 The script will:
 	1.	Query Notion for pending actions and items awaiting responses.
-	2.	Generate a Markdown checklist grouped into sections.
-	3.	Create or update a daily note in Joplin with those sections.
+        2.      Count the number of unscheduled actions
+	3.	Generate a Markdown checklist grouped into sections.
+	4.	Create or update a daily note in Joplin with those sections.
 
 You can run this manually or via a cron job / scheduled task.
 
