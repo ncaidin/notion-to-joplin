@@ -210,6 +210,9 @@ def main():
     # Waiting section
     waiting_section = build_checklist_section("Awaiting responses", waiting_actions)
     if waiting_section:
+        if pending_section:
+            sections.append("---")
+
         sections.append(waiting_section)
 
     # Footer for unscheduled items, only if > 0
