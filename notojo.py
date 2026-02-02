@@ -27,6 +27,7 @@ load_dotenv(BASE_DIR / ".env")
 # NOTION variables
 NOTION_SECRET = os.environ.get("NOTION_SECRET")
 NOTION_ACTION_DATABASE_ID = os.environ.get("NOTION_ACTION_DATABASE_ID")
+NOTION_PROJECTS_DATABASE_ID = os.environ.get("NOTION_PROJECTS_DATABASE_ID")
 NOTION_CONTACTS_DATABASE_ID = os.environ.get("NOTION_CONTACTS_DATABASE_ID")
 NOTION_INTERACTIONS_DATABASE_ID = os.environ.get("NOTION_INTERACTIONS_DATABASE_ID")
 NOTION_ACTION_ZONE_PAGE_ID = os.environ.get("NOTION_ACTION_ZONE_PAGE_ID")
@@ -42,6 +43,7 @@ JOPLIN_TODO_FOLDER_ID = "9bd030cb7cda47a5beac41da29a149db"
 REQUIRED_VARS = [
     "NOTION_SECRET",
     "NOTION_ACTION_DATABASE_ID",
+    "NOTION_PROJECTS_DATABASE_ID",
     "JOPLIN_TOKEN",
     "NOTION_CONTACTS_DATABASE_ID",
     "NOTION_INTERACTIONS_DATABASE_ID",
@@ -126,6 +128,48 @@ def query_notion_waiting():
         return []
 
 
+def query_stalled_projects():
+    """Finds 'In Progress' projects that have zero 'Next Step' actions."""
+    project_payload = {
+        "filter": {
+            "property": "Project Status",
+            "select": {"equals": "In Progress"}
+        }
+    }
+    
+    try:
+        projects = query_notion_database(NOTION_PROJECTS_DATABASE_ID, project_payload).get("results", [])
+    except Exception as e:
+        log_error(f"❌ Error querying Projects database: {e}")
+        return []
+
+    stalled_projects = []
+
+    for project in projects:
+        project_id = project["id"]
+        name_prop = project["properties"]["Name"]["title"]
+        project_name = "".join([t["plain_text"] for t in name_prop]) if name_prop else "Untitled Project"
+        
+        action_payload = {
+            "filter": {
+                "and": [
+                    {"property": "Projects", "relation": {"contains": project_id}},
+                    {"property": "Next Step", "checkbox": {"equals": True}},
+                    {"property": "Done", "checkbox": {"equals": False}}
+                ]
+            },
+            "page_size": 1
+        }
+        
+        try:
+            actions = query_notion_database(NOTION_ACTION_DATABASE_ID, action_payload).get("results", [])
+            if not actions:
+                stalled_projects.append(project_name)
+        except Exception as e:
+            log_error(f"❌ Error checking actions for project {project_name}: {e}")
+
+    return stalled_projects
+
 def count_contacts_needing_review():
     """Count Contacts with Needs Review == true."""
     payload = {
@@ -161,21 +205,13 @@ def count_interactions_project_review():
 
 
 def get_weekly_goals_markdown():
-    """
-    Fetch Weekly Goals from the Action Zone page.
-
-    Assumes:
-      - NOTION_ACTION_ZONE_PAGE_ID is a page
-      - There is a toggle_heading_1 (or heading_1) whose text == "Weekly Goals"
-      - Its nested children (for a toggle) are bulleted_list_item blocks
-    """
+    """Fetch Weekly Goals from the Action Zone page."""
     headers = {
         "Authorization": f"Bearer {NOTION_SECRET}",
         "Notion-Version": NOTION_VERSION,
         "Content-Type": "application/json",
     }
 
-    # 1) Get top-level children of Action Zone page
     url = f"{NOTION_API_URL}/blocks/{NOTION_ACTION_ZONE_PAGE_ID}/children"
 
     try:
@@ -187,13 +223,10 @@ def get_weekly_goals_markdown():
         return None
 
     blocks = data.get("results", [])
-
     weekly_toggle_block = None
 
     for block in blocks:
         btype = block.get("type")
-
-        # Handle both toggle_heading_1 and plain heading_1, just in case
         if btype in {"toggle_heading_1", "heading_1"}:
             rich = block[btype]["rich_text"]
             text = "".join([r.get("plain_text", "") for r in rich]).strip()
@@ -202,14 +235,9 @@ def get_weekly_goals_markdown():
                 break
 
     if weekly_toggle_block is None:
-        # Could not find the Weekly Goals heading/toggle
         return None
 
-    # If it's a toggle, its bullet children will be in its own children endpoint
     block_id = weekly_toggle_block["id"]
-
-    # For a heading_1 that is not a toggle, you might instead look at subsequent siblings,
-    # but per your description it's a toggle with nested bullets.
     child_url = f"{NOTION_API_URL}/blocks/{block_id}/children"
 
     try:
@@ -290,7 +318,7 @@ def create_joplin_note(title: str, body: str):
     payload = {
         "title": title,
         "body": body,
-        "parent_id": JOPLIN_TODO_FOLDER_ID,  # send note to "To Dos"
+        "parent_id": JOPLIN_TODO_FOLDER_ID,
     }
 
     try:
@@ -309,27 +337,25 @@ def create_joplin_note(title: str, body: str):
 
 
 def main():
-    # Weekly Goals at the very top
     weekly_goals_md = get_weekly_goals_markdown()
 
-    # Existing Notion queries
     pending_results = query_notion_actions()
     pending_actions = extract_action_names(pending_results)
 
     waiting_results = query_notion_waiting()
     waiting_actions = extract_action_names(waiting_results)
 
+    stalled_projects = query_stalled_projects()
     unscheduled = unscheduled_count()
 
-    # New CRM-related counts
     contacts_needing_review = count_contacts_needing_review()
     interactions_project_review = count_interactions_project_review()
 
-    # Skip entirely only if absolutely nothing to say
     if (
         not weekly_goals_md
         and not pending_actions
         and not waiting_actions
+        and not stalled_projects
         and unscheduled == 0
         and contacts_needing_review == 0
         and interactions_project_review == 0
@@ -339,32 +365,33 @@ def main():
 
     sections = []
 
-    # 1) Weekly Goals at top (if available)
     if weekly_goals_md:
         sections.append(weekly_goals_md)
         sections.append("---")
 
-    # 2) Pending Actions section
     pending_section = build_checklist_section("Pending Actions", pending_actions)
     if pending_section:
         sections.append(pending_section)
 
-    # 3) Waiting section
     waiting_section = build_checklist_section("Awaiting Responses", waiting_actions)
     if waiting_section:
         if pending_section:
             sections.append("---")
         sections.append(waiting_section)
 
-    # 4) Unscheduled footer
+    if stalled_projects:
+        sections.append("---")
+        sections.append("🚨 **Stalled Projects** (No Next Step):")
+        for p in stalled_projects:
+            sections.append(f"- {p}")
+
     if unscheduled > 0:
         sections.append("---")
-        sections.append("&nbsp;")  # spacer
+        sections.append("&nbsp;")
         sections.append(
             f"Unscheduled actions in Notion (no Do Date): **{unscheduled}**"
         )
 
-    # 5) CRM counts footer
     if contacts_needing_review > 0 or interactions_project_review > 0:
         sections.append("---")
         sections.append("CRM Review")

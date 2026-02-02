@@ -19,6 +19,7 @@ Current features:
   - Weekly Goals
   - Pending Actions
   - Awaiting Responses
+  - Stalled Projects (No Next Step)
   - Unscheduled actions count
   - CRM Review counts
 - Create a daily Joplin note with a date-based title in a specific folder
@@ -69,6 +70,9 @@ This script expects secrets/config to come from environment variables
 - `NOTION_ACTION_DATABASE_ID`  
   Database ID for the Actions database.
 
+- `NOTION_PROJECTS_DATABASE_ID`  
+  Database ID for the Projects database.
+
 - `NOTION_CONTACTS_DATABASE_ID`  
   Database ID for the Contacts (CRM) database.
 
@@ -93,6 +97,7 @@ This script expects secrets/config to come from environment variables
 Make sure your Notion integration is explicitly added to:
 
 - The Actions database
+- The Projects database
 - The Contacts database
 - The Interactions database
 - The Action Zone page
@@ -117,11 +122,13 @@ The script will:
    - Pending Actions
    - Awaiting Responses
    - Unscheduled actions count
-3. Query CRM databases for:
+3. Query the Projects database for:
+   - Stalled Projects (In Progress projects with no active "Next Step" actions)
+4. Query CRM databases for:
    - Contacts needing review
    - Interactions marked for project review
-4. Generate a Markdown note with these sections (if there is anything to report).
-5. Create a new daily note in Joplin with a title like:
+5. Generate a Markdown note with these sections (if there is anything to report).
+6. Create a new daily note in Joplin with a title like:
 
    ```text
    Notion To Dos – DD-MM-YYYY
