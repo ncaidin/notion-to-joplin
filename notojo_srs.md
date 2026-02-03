@@ -18,6 +18,7 @@ The script automatically generates a daily Markdown note in Joplin that summariz
 - Action items from a Notion Actions database
 - Weekly Goals from a Notion Action Zone page
 - CRM review counts from Notion Contacts and Interactions databases
+- Stalled Projects (In Progress projects with no active Next Step actions)
 
 This SRS is intended to guide development, testing, and future enhancements of the script.
 
@@ -43,9 +44,11 @@ Out of scope:
 - **Joplin**: An open-source note-taking application that exposes a Web Clipper/Data API.
 - **Action Zone**: A specific Notion page that contains the user’s “Weekly Goals”.
 - **Actions Database**: A Notion database used to track actions/tasks.
+- **Projects Database**: A Notion database used to track high-level projects, linked to the Actions database.
 - **Contacts Database**: A Notion database used as a mini-CRM for contacts.
 - **Interactions Database**: A Notion database used as a mini-CRM for interactions.
 - **Weekly Goals**: A set of bulleted goals for the current week, stored as a Notion toggle/heading block with nested bullets.
+- **Stalled Project**: A project with a status of "In Progress" that does not have any associated incomplete actions marked as a "Next Step".
 - **LaunchAgent / launchd**: macOS system for scheduling and managing background processes.
 - **`.env` file**: A file containing environment variables used to configure the script.
 - **Integration Token / Notion Secret**: The secret token used to authenticate Notion API calls.
@@ -78,6 +81,7 @@ At a high level, the script:
 2. Queries Notion for:
    - Weekly Goals from a single page.
    - Pending and waiting actions from an Actions database.
+   - Stalled Projects (In Progress projects with no active Next Step actions).
    - Unscheduled actions count.
    - Counts for:
      - Contacts with “Needs Review” checked.
@@ -140,6 +144,7 @@ On startup, the script reads environment variables from `.env` and ensures requi
 
 - `NOTION_SECRET`
 - `NOTION_ACTION_DATABASE_ID`
+- `NOTION_PROJECTS_DATABASE_ID`
 - `NOTION_CONTACTS_DATABASE_ID`
 - `NOTION_INTERACTIONS_DATABASE_ID`
 - `NOTION_ACTION_ZONE_PAGE_ID`
@@ -193,6 +198,7 @@ Fetch “Weekly Goals” from the Notion Action Zone page and convert them to Ma
 
    - Collect all child blocks of type `bulleted_list_item`.
    - Extract bullet text and form Markdown list items.
+> **Note:** The script assumes a single "Weekly Goals" block per page and stops searching once the first match is found.
 
 **Outputs**
 
@@ -235,6 +241,8 @@ Generate a checklist of pending actions based on the Notion Actions database.
    - `Do Date on_or_before today (UTC date)`
 2. Extract the `Name` property as the action label (first title fragment’s `plain_text`).
 3. Build a Markdown checklist.
+
+> **Note:** Date comparisons use UTC for datetime values; date-only values are timezone-agnostic. This has not caused practical issues in the user's workflow.
 
 **Outputs**
 
@@ -395,8 +403,41 @@ CRM Review
 If both counts are zero, this section is omitted.
 
 ---
+### 3.7 Feature: Stalled Projects Detection
 
-### 3.7 Feature: Note Assembly & Creation in Joplin
+**Description**
+
+Identify projects that are "In Progress" but have no active "Next Step" defined in the Actions database.
+
+**Inputs**
+• NOTION_PROJECTS_DATABASE_ID
+• NOTION_ACTION_DATABASE_ID
+• Projects Database Fields:
+  • Project Status (select)
+  • Name (title)
+• Actions Database Fields:
+  • Projects (relation to Projects DB)
+  • Next Step (checkbox)
+  • Done (checkbox)
+
+**Processing**
+1. Query Projects database for all items where Project Status == "In Progress".
+2. For each project found:
+  • Query the Actions database with a filter:
+    • Projects (relation) contains the current project_id.
+    • Next Step == true.
+    • Done == false.
+  • If the query returns zero results, the project is considered "Stalled".
+3. Collect the names of all stalled projects.
+
+**Outputs**
+If stalled projects are found:
+---
+🚨 **Stalled Projects** (No Next Step):
+- Project Name A
+- Project Name B
+
+### 3.8 Feature: Note Assembly & Creation in Joplin
 
 **Description**
 
@@ -417,8 +458,9 @@ Combine all sections into a single Markdown document and create a new Joplin not
 1. Weekly Goals (if available), followed by `---`.
 2. Pending Actions.
 3. Awaiting Responses (with `---` separator if Pending also present).
-4. Unscheduled Actions footer (if count > 0).
-5. CRM Review section (if at least one CRM count > 0).
+4. Stalled Projects (with --- separator)
+5. Unscheduled Actions footer (if count > 0).
+6. CRM Review section (if at least one CRM count > 0).
 
 **Behavior for “No Content” Case**
 
@@ -427,6 +469,7 @@ If all of the following are true:
 - No Weekly Goals content.
 - No pending actions.
 - No waiting actions.
+- No stalled projects found.
 - Unscheduled count == 0.
 - Contacts needing review == 0.
 - Interactions for project review == 0.
@@ -525,9 +568,10 @@ Payload:
 
 Potential future features (not currently implemented, but relevant for roadmap):
 
-- Schema dump utility for Notion databases (for introspection/debugging).
 - Idempotent daily notes (update existing note instead of creating a new one).
 - Optional always-visible CRM section (even when counts are zero).
 - Configurable Joplin folder via `.env` rather than hard-coded ID.
 - Additional Notion sections (e.g., Overdue vs Due-today separation).
 - More robust error reporting and alerting.
+- Project Description Integration: Pulling the Project Description rich text into the Stalled Projects report.
+• Seed/Action Separation: Excluding items tagged as 🌱 Seed from the "Unscheduled Actions" count to reduce "dread."
