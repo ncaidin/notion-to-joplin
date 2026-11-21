@@ -328,7 +328,17 @@ def create_joplin_note(title: str, body: str):
         note_id = data.get("id")
         log(f"✅ Created Joplin note with id: {note_id}")
     except Exception as e:
-        log_error(f"❌ Error creating Joplin note: {e}")
+        # Joplin's API only accepts the token as a URL query parameter, and
+        # requests includes the full URL in HTTPError / ConnectionError
+        # messages. Redact it so the token never lands in the launchd logs.
+        log_error(f"❌ Error creating Joplin note: {redact_joplin_token(str(e))}")
+
+
+def redact_joplin_token(text: str) -> str:
+    """Replace any occurrence of the Joplin token in text with a placeholder."""
+    if JOPLIN_TOKEN:
+        text = text.replace(JOPLIN_TOKEN, "<redacted>")
+    return text
 
 
 # --------------------
